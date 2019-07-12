@@ -1,0 +1,730 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>reveal.js</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<style>
+			.about {
+				font-size: 32px;
+			}
+
+			.profile-image {
+				width: 250px;
+				border-radius: 50%;
+				border-width: 2px !important;
+			}
+
+			.favorites li {
+				list-style: none;
+			}
+
+			.highlight-red {
+				color: red;
+			}
+
+			.reveal pre code {
+				min-height: 550px;
+			}
+
+			.reveal pre {
+				width: 100%;
+				margin: 0;
+			}
+
+			#nonshared_1 {
+				height: 140px;
+				min-height: 0px;
+			}
+
+			#nonshared_2 {
+				height: 240px;
+				min-height: 0px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>Dependency Injection in a legacy monolith & Object state hell</h2>
+
+					Michel Petiton & Marcel Kempf
+				</section>
+				<section class="about">
+					<section>
+						<img src="r4c00n.jpeg" alt="Marcel Kempf" class="profile-image">
+						<div>github.com/R4c00n</div>
+						<div>twitter.com/Coding_R4c00n</div>
+						<br>
+						<ul class="favorites">
+							<li>Clean code 👩‍💻</li>
+							<li>Nice food 🍜</li>
+							<li>Tea 🍵</li>
+							<li>Trash (pandas) 🦝</li>
+						</ul>
+					</section>
+
+					<section>
+						<img src="demichl.jpg" alt="Michel Petiton" class="profile-image">
+						<div>github.com/demichl68 (tumbleweed)</div>
+						<br>
+						<ul class="favorites">
+							<li>BBQ</li>
+							<li>Italian bikes</li>
+							<li>Clean Architecture</li>
+						</ul>
+					</section>
+
+				</section>
+				<section>
+					<h3>Dependency inversion principle</h3>
+
+					<ul>
+						<li>High-level modules should not depend on low-level modules. Both should depend on abstraction.</li>
+						<li>Abstractions should not depend on details. Details should depend on abstractions.</li>
+					</ul>
+				</section>
+				<section>
+					<section>
+						<h3>High-level modules should not depend on low-level modules. Both should depend on abstraction.</h3>
+					</section>
+
+					<section>
+						<img src="high-low-example-bad.png" alt="High-level depending on low-level">
+					</section>
+
+					<section>
+						<img src="high-low-example-good.png" alt="High-level depending on abstraction">
+					</section>
+					<section>
+						<h3>High-level modules should not depend on low-level modules. Both should depend on <span class="highlight-red">abstraction.</span></h3>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h3>Abstractions should not depend on details. Details should depend on abstractions.</h3>
+					</section>
+
+					<section>
+						<img src="abstraction-on-detail.png" alt="Abstraction depending on details">
+					</section>
+				</section>
+
+                <section>
+                    <section>
+						<pre>
+							<code data-trim data-noescape>
+								class GitHubService {
+								  public function getRepository($owner, $repository): \Psr\Http\Message\ResponseInterface
+								  {
+								      return (new \GuzzleHttp\Client())
+								        ->get("/repos/${owner}/${repository}");
+								  }
+								}
+							</code>
+						</pre>
+                    </section>
+                    <section>
+                        <img src="better-way.jpeg" alt="We can do better!">
+                    </section>
+                    <section>
+						<pre>
+							<code data-trim data-noescape>
+								use GuzzleHttp\ClientInterface;
+
+								class GitHubService {
+								  /** @var ClientInterface */
+								  private $guzzle;
+
+								  public function __construct(ClientInterface $guzzle)
+								  {
+								    $this->guzzle = $guzzle;
+								  }
+
+								  public function getRepository($owner, $repository): \Psr\Http\Message\ResponseInterface
+								  {
+								      return $this->guzzle->get("/repos/${owner}/${repository}");
+								  }
+								}
+							</code>
+						</pre>
+                    </section>
+                </section>
+
+                <section>
+                    <section>
+                        <img src="monolith.jpg" alt="The monolith">
+                    </section>
+
+                    <section>
+                        <h3>... Well, let's at least improve it.</h3>
+                    </section>
+
+                    <section>
+                        <h3>A few stats</h3>
+                        <ul>
+                            <li>6572 PHP files</li>
+                            <li>969624 Lines of PHP</li>
+                            <li>Lots of static methods</li>
+                            <li>Magic everywhere 🧙</li>
+                            <li>Stateful everything!</li>
+                            <li>Tight coupling</li>
+                            <li>No modules</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h3>0 (Real) Unit tests (Before DI) 😔</h3>
+                    </section>
+                </section>
+
+                <section>
+                    <section>
+                        <h3>So, where do we start?</h3>
+                    </section>
+
+                    <section>
+                        <ul>
+                            <li>DI on demand</li>
+                            <li>DI starting in controllers</li>
+                            <li>DI starting at every entry point</li>
+                        </ul>
+                    </section>
+
+					<section>
+						<img src="explicit-content.png" alt="Explicit Content">
+					</section>
+
+					<!-- Version 1 -->
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								class GitHubService {
+								  public function getRepository($owner, $repository): \Psr\Http\Message\ResponseInterface
+								  {
+								      return (new \GuzzleHttp\Client())
+								        ->get("/repos/${owner}/${repository}");
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								use GuzzleHttp\ClientInterface;
+
+								class GitHubService {
+								  /** @var ClientInterface */
+								  private $guzzle;
+
+								  public function __construct()
+								  {
+								      $this->guzzle = Container::getInstance()->get(ClientInterface::class);
+								  }
+
+								  public function getRepository($owner, $repository): \Psr\Http\Message\ResponseInterface
+								  {
+								      return $this->guzzle->get("/repos/${owner}/${repository}");
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<h3>Pros</h3>
+
+						<ul>
+							<li>No refactoring necessary</li>
+							<li>Decoupled (mostly)</li>
+						</ul>
+					</section>
+
+					<section>
+						<h3>Cons</h3>
+
+						<ul>
+							<li>Still hard coupling to the container class</li>
+							<li>Not testable in a nice way</li>
+						</ul>
+					</section>
+
+					<!-- Version 2 -->
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								class PlaceOrderController {
+								  public function placeAction()
+								  {
+								      $order = new Order($_POST); // Don't do this!
+								      $orderService = new OrderService();
+								      $orderService->place($order);
+
+								      // Don't do this either!
+								      echo json_encode(['id' => $order->getId()]);
+								      die;
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								class OrderService {
+								  public function place(Order $order)
+								  {
+								      $db = new Db();
+								      $db->query('INSERT INTO order ...');
+
+								      $order->setId($db->lastInsertId());
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								class PlaceOrderController {
+								  public function __construct()
+								  {
+								      $this->orderService = Container::get_instance()->get(OrderServiceInterface::class);
+								      $this->orderFactory = Container::get_instance()->get(OrderFactory::class);
+								  }
+
+								  public function placeAction()
+								  {
+								      $order = $this->orderFactory->create($_POST); // Don't do this!
+								      $this->orderService->place($order);
+
+								      // Don't do this either!
+								      echo json_encode(['id' => $order->getId()]);
+								      die;
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								class OrderService {
+								  private $db;
+
+								  public function __construct(DbInterface $db)
+								  {
+								      $this->db = $db;
+								  }
+
+								  public function place(OrderInterface $order)
+								  {
+								      $this->db->query('INSERT INTO order ...');
+									  $order->setId($db->lastInsertId());
+								  }
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<h3>Pros</h3>
+
+						<ul>
+							<li>No refactoring necessary</li>
+							<li>Decoupled (mostly)</li>
+							<li>Only coupled to container inside controller</li>
+						</ul>
+					</section>
+
+					<section>
+						<h3>Cons</h3>
+
+						<ul>
+							<li>Still hard coupling to the container class inside controller</li>
+							<li>Controller is still not testable in a nice way</li>
+						</ul>
+					</section>
+
+					<!-- Version 3 -->
+					<section>
+						<ul>
+							<li>
+								src/
+
+								<ul>
+									<li>
+										public
+
+										<ul>
+											<li>index.php</li>
+											<li>api.php</li>
+										</ul>
+									</li>
+								</ul>
+							</li>
+							<li>
+								bin
+
+								<ul>
+									<li>console</li>
+								</ul>
+							</li>
+						</ul>
+					</section>
+
+                    <section>
+                        <pre>
+                            <code data-trim data-noescape>
+                                // index.php
+
+                                class App {
+                                  public function run()
+                                  {
+                                    //
+                                    $moduleClassName = '\\App\\Controller\\' . $module;
+                                    $handler = new $moduleClassName();
+                                    $handler->run();
+                                  }
+                                }
+
+                                $app = new App();
+                                $app->run();
+                            </code>
+                        </pre>
+                    </section>
+
+                    <section>
+                        <pre>
+                            <code data-trim data-noescape>
+                                // index.php
+
+                                class App {
+                                  public function __construct(ContainerInterface $container)
+                                  {
+                                    $this->container = $container;
+                                  }
+
+                                  public function run()
+                                  {
+                                    //
+                                    $moduleClassName = '\\App\\Controller\\' . $module;
+                                    $handler = $this->container->get($moduleClassName);
+                                    $handler->run();
+                                  }
+                                }
+
+                                $app = Container::getInstance()->get(App::class);
+                                $app->run();
+                            </code>
+                        </pre>
+                    </section>
+
+					<section>
+						<h3>Pros</h3>
+
+						<ul>
+							<li>Userland codes benefits from DI right from the beginning</li>
+							<li>No use of the container itself (besides factories)</li>
+						</ul>
+					</section>
+
+					<section>
+						<h3>Cons</h3>
+
+						<ul>
+							<li>Refactoring of internal framework code</li>
+						</ul>
+					</section>
+                </section>
+
+				<section>
+					<section>
+						<h3>Details details details</h3>
+					</section>
+
+					<section>
+						<ul>
+							<li>DI Framework: https://github.com/zendframework/zend-servicemanager</li>
+							<li>Auto wiring: https://github.com/reinfi/zf-dependency-injection</li>
+						</ul>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								(new autowire_migration_tool())->execute(
+								    __DIR__ . '/../vendor/autoload.php',
+								    __DIR__ . '/../config/di_legacy.php'
+								);
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								return [
+									'factories' => [
+										GitHubService::class => AutoWiringFactory::class,
+										OrderRepository::class => OrderRepositoryFactory::class,
+									],
+									'aliases' => [
+										OrderRepositoryInterface::class => OrderRepository::class,
+									],
+									'abstract_factories' => [
+										FallbackAutoWiringFactory::class,
+									],
+								];
+							</code>
+						</pre>
+					</section>
+				</section>
+
+				<section>
+					<h3>The monolith today</h3>
+
+					<ul>
+						<li>5524 Unit tests</li>
+						<li>Middleware routing (in some parts)</li>
+						<li>(Zend) modules</li>
+						<li>Explicit configuration instead of weird convention magic</li>
+					</ul>
+				</section>
+
+				<section>
+					<section>
+						<h3>Everything went better than expected! Or not?</h3>
+					</section>
+
+					<section>
+						<blockquote>"A customer is complainging, he's getting a lot of emails lately!"</blockquote>
+					</section>
+					<section>
+						<img src="angry_customer.jpg" alt="Picture of the customer">
+					</section>
+
+					<section>
+						<h3>Conclusion: We have a bug somewhere!</h3>
+
+						<img src="cpt_obvious.jpeg" alt="Thanks, captain obvious!">
+					</section>
+				</section>
+
+				<section>
+					<section>
+						<h3>What exactly happened?</h3>
+
+						<li class="fragment">A customer received 2000 Emails instead of 2000 customers receiving 1 Email each. <span class="fragment"><span class="highlight-red">Twice!</span></span></li>
+					</section>
+
+					<section>
+						<pre>
+							<code data-trim data-noescape>
+								/**
+								  * send mail
+								  */
+								public function send(): bool {
+									[...]
+									if ($this->is_created === false) {
+										if (trim($this->get_mail()->get_body()) !== '') {
+											$this->is_created = true;
+										} else {
+											if ($this->build_email() === false) {
+												return false;
+											}
+										}
+										[...]
+									}
+									[...]
+
+									return $this->get_email()->send();
+								}
+							</code>
+						</pre>
+					</section>
+					<section>
+						<img src="mindblown.gif" alt="MIND BLOWN">
+						<h4><span class="highlight-red">Mind = blown!</span></h4>
+					</section>
+
+				</section>
+
+				<section>
+					<h3>How did we tackle the problem?</h3>
+
+					<section>
+						<h4 class="fragment"><span class="highlight-red">Awareness!</span></h4>
+					</section>
+
+					<section>
+						<br>
+						<h4><span class="highlight-red">Avoid</span> implicit internal <span class="highlight-red">state</span> in code!</h4>
+						<pre class="fragment">
+							<code data-trim data-noescape>
+								namespace DoNotTryAtHome;
+								class BadExample {
+
+									$isInitialized = false;
+									public function initialize(): void {
+										[...]
+										$this->isInitialized = true;
+									}
+									public function doSomething(): bool {
+										if (!$this->isInitialized) {
+											return true;
+										}
+										return false;
+									}
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<br>
+						<h4>Make state <span class="highlight-red">explicit</span>!</h4>
+						<pre class="fragment">
+							<code data-trim data-noescape>
+								class BetterExample {
+									private $someService;
+									public function __construct(SomeService $someService) {
+										$this->someService = $someService;
+									}
+									public function doSomething(string $withThisString): SomeResultSet {
+										$someMethodResult = $this->someService->someMethod($withThisString);
+										$status = !empty($someMethodResult);
+										return new SomeResultSet(
+											$status,
+											[
+												'someMethodResult' => $someMethodResult,
+											]
+										);
+									}
+								}
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<br>
+						<h5>If state is necessary, make instances<br> <span class="highlight-red">non-shared</span>!</h5>
+						<img class="fragment" src="shellfish.jpeg" alt="I dont like to share!">
+					</section>
+
+					<section>
+						<br>
+						<pre>
+							<code data-trim data-noescape id="nonshared_1">
+								foreach ($foo as $bar) {
+									$myNonSharedInstance = $container->build(MyNonSharedInstance::class);
+									$myNonSharedInstance->doSomethingWith($bar);
+								}
+							</code>
+						</pre>
+						<pre class="fragment">
+							Equivalent to:
+							<code data-trim data-noescape id="nonshared_2">
+								[
+									'factories' => [
+										MyNonSharedInstance::class => MyNonSharedInstanceFactory::class
+									],
+									'shared => [
+										MyNonSharedInstance::class => false,
+									],
+								]
+							</code>
+						</pre>
+					</section>
+
+					<section>
+						<br>
+						<h4>If state is necessary, make instances <span class="highlight-red">immutable</span>!</h4>
+						<pre class="fragment">
+							<code data-trim data-noescape>
+								class Employee implements MyImmutableClassInterface {
+									public function __construct(string $name, int $age) {...}
+									public function withName(string $newName): MyImmutableClassInterface {
+										return new static($newName);
+									}
+									public function withAge(int $age): MyImmutableClassInterface {
+										return new static($newName);
+									}
+								}
+
+								$employeeJohnDoe = new Employee('John doe', 18);
+								{...}
+								$employeeJohnDoePensioner = $employeeJohnDoe->withAge(66);
+								{...}
+								sql_object_hash($employeeJohnDoe) === spl_object_hash($employeeJohnDoePensioner);
+							</code>
+						</pre>
+					</section>
+
+				</section>
+
+				<section>
+					<h3>Lessons learned!</h3>
+
+					<section>
+						<li class="fragment">Better understanding of what state actually means.</li>
+						<li class="fragment">ServiceManager internals.</li>
+						<li class="fragment">Better code reviews.</li>
+					</section>
+				</section>
+
+				<section>
+					<h3>Thank you!</h3>
+					<img src="thank-you.jpg" alt="Thank you">
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+
+			Reveal.configure({
+				keyboard: {
+				    37: 'prev',
+				    39: 'next',
+				}
+			});
+		</script>
+	</body>
+</html>
